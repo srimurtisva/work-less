@@ -1,0 +1,23 @@
+[package]
+name = "bevy_iroh"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+iroh =   "=1"
+iroh-tickets = { version = "=1" }
+iroh-blobs = { version = "=0.103"}
+iroh-gossip = { version = "=0.101.0"}
+iroh-mdns-address-lookup = "0.4"
+iroh-mainline-address-lookup = "0.4"
+
+bevy-tokio-tasks = "0.19"
+bevy_app = { workspace = true }
+bevy_ecs = { workspace = true }
+
+tracing = {workspace = true }
+derive_more = { workspace = true }
+directories = "6.0.0" # For iroh::SecretKey persistance
+
+[dev-dependencies]
+tempfile = "3.10"

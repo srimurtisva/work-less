@@ -1,0 +1,14 @@
+[package]
+name = "app"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+iced_client =  { workspace = true, optional = true }
+
+tracing = { workspace = true }
+anyhow = { workspace = true }
+
+[features]
+default = ["iced"]
+iced = ["dep:iced_client"]

@@ -1,0 +1,22 @@
+[workspace]
+resolver = "2"
+default-members = ["app"]
+members = ["app","bevy_iroh","bevy_loro", "engine",
+    "frontends/iced_client"
+]
+
+[workspace.dependencies]
+
+bevy_iroh = { path = "bevy_iroh" }
+bevy_loro = { path = "bevy_loro" }
+iced_client = { path = "frontends/iced_client" }
+
+
+bevy_ecs = "0.19"
+bevy_app = "0.19"
+tokio = { version = "1", features = ["macros"] }
+anyhow = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+tracing = "0.1"
+derive_more = { version = "2", features = ["deref", "deref_mut","constructor"] }
+
