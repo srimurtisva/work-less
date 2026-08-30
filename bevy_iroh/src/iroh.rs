@@ -1,7 +1,7 @@
-/// Base endpoint
-// TODO: consider removing 'pub' from some of them
-pub mod plugin;
-pub mod components;
-pub mod systems;
+/// Base networking
 pub mod events;
+pub mod plugin;
+pub mod resources;
+mod systems;
 mod util;
+mod observers;

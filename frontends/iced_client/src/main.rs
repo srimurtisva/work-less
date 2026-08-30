@@ -1,7 +1,16 @@
 mod backend;
+use tracing_subscriber::EnvFilter;
 
-pub fn run() -> iced::Result {
+pub fn main() -> iced::Result {
     println!("Started");
+    
+    let _ = tracing_subscriber::fmt()
+    .compact()
+    .with_env_filter(
+        EnvFilter::try_from_default_env()
+            .unwrap_or_else(|_| EnvFilter::new("info"))
+    )
+    .try_init();
 
     iced::application(boot, update, view)
         .window_size(iced::Size::new(800.0, 600.0))

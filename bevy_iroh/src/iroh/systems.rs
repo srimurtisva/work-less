@@ -1,54 +1,76 @@
-use crate::iroh::components::{Gossip, Router};
-use crate::iroh::events::{Error, NodeStarted,EndpointBinded};
+use crate::iroh::events::{EndpointBinded, General};
 use bevy_ecs::prelude::*;
-use bevy_tokio_tasks::TokioTasksRuntime;
-use iroh::Endpoint;
 use iroh::endpoint::presets;
 
-pub fn startup_iroh(
-    runtime: ResMut<TokioTasksRuntime>,
-) {
+// pub fn startup_endpoint(runtime: ResMut<TokioTasksRuntime>) {
+//     runtime.spawn_background_task(move |mut ctx| async move {
+//         match create_endpoint().await {
+//             Ok(endpoint) => {
+//                 tracing::info!("Iroh Endpoint succesfuly started.");
+//                 ctx.run_on_main_thread(move |ctx| {
+//                     let world = ctx.world;
+
+//                     world.trigger(EndpointBinded(endpoint.id().to_string()));
+//                     tracing::info!("EndpointBinded event triggered.");
+//                 })
+//                 .await;
+//             }
+//             Err(error) => {
+//                 tracing::error!(%error,"Failed to create Iroh Endpoint.");
+//             }
+//         };
+//     });
+// }
+
+async fn create_endpoint() -> Result<iroh::Endpoint, iroh::endpoint::BindError> {
     let key = super::util::NodeIdentityManager::auto().get_or_create_key();
 
-    runtime.spawn_background_task(move |mut ctx| async move {
-        let endpoint = match Endpoint::builder(presets::N0)
-            .secret_key(key)
-            .bind()
-            .await
-        {
-            Ok(ep) => {
-                let id = ep.id();
-                ctx.run_on_main_thread(move |ctx| {
-                    let world = ctx.world;
-                    world.trigger(EndpointBinded(id.to_string()));
-                })
-                .await;
-                ep},
-            Err(e) => {
-                ctx.run_on_main_thread(move |ctx| {
-                    let world = ctx.world;
-                    world.trigger(Error(e.to_string()));
-                })
-                .await;
-                return;
+    let dht = iroh_mainline_address_lookup::DhtAddressLookup::builder();
+    let mdns = iroh_mdns_address_lookup::MdnsAddressLookup::builder();
+    iroh::Endpoint::builder(presets::N0)
+        .secret_key(key)
+        .address_lookup(dht)
+        .address_lookup(mdns)
+        .bind()
+        .await
+}
+
+pub fn startup_endpoint2(mut commands: Commands) {
+    let (sender, reciever) = std::sync::mpsc::channel::<General>();
+
+    tokio::spawn(async move {
+        match create_endpoint().await {
+            Ok(endpoint) => {
+                tracing::info!("Iroh Endpoint succesfuly started.");
+
+                send_event(sender, General::EndpointBinded(endpoint));
+                tracing::info!("EndpointBinded event triggered.");
+            }
+            Err(error) => {
+                tracing::error!(%error,"Failed to create Iroh Endpoint.");
             }
         };
-
-        println!("Iroh Endpoint succesfuly started");
-        println!("Node Id: {}", endpoint.id());
-
-        let gossip = iroh_gossip::Gossip::builder().spawn(endpoint.clone());
-        let router = iroh::protocol::Router::builder(endpoint.clone())
-            .accept(iroh_gossip::ALPN, gossip.clone())
-            .spawn();
-
-        let node_id = endpoint.id().to_string();
-        ctx.run_on_main_thread(move |ctx| {
-            let world = ctx.world;
-            world.spawn(Router::new(router));
-            world.spawn(Gossip::new(gossip));
-            world.trigger(NodeStarted(node_id));
-        })
-        .await;
     });
+
+    if let Ok(event) = reciever.recv() {
+        commands.trigger(event);
+        tracing::info!("Triggered event.");
+    }
 }
+
+fn send_event(sender: std::sync::mpsc::Sender<crate::General>, event: General) {
+    let result = sender.send(event);
+    if let Err(error) = result {
+        tracing::error!("Failed to send event: {error}");
+    };
+}
+
+// pub fn event_loop(mut commands: Commands) {
+//     let (sender, reciever) = std::sync::mpsc::channel::<General>();
+//     commands.insert_resource(super::resources::MainThreadWaker(sender));
+//     tracing::info!("Resource MainthreadWaker inserted.");
+//     while let Ok(event) = reciever.try_recv() {
+//         commands.trigger(event);
+//         tracing::info!("Triggered event.");
+//     }
+// }
