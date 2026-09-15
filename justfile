@@ -51,3 +51,11 @@ clean:
 # Запустить десктопное приложение
 run-desktop:
     cargo run -p desktop
+
+# Git commit with message
+git message="message":
+    cd ~/code/rust/work-less
+    git add .
+    git commit -m "{{message}}"
+    git push
+
