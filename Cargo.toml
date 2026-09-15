@@ -1,23 +1,19 @@
 [workspace]
 resolver = "3"
-default-members = ["frontends/iced_client"]
-members = [ "shared",
-    "frontends/iced_client"
-]
+members = ["desktop", "p2p", "shared"]
+default-members = ["desktop"]
 
 [workspace.package]
 edition = "2024"
 rust-version = "1.90"
 
 [workspace.dependencies]
+shared = { path = "shared" }
+p2p = {path = "p2p"}
 
-shared = { path = "shared"}
-iced_client = { path = "frontends/iced_client" }
-
-
-crux_core = "0.20"
-tokio = { version = "1", features = ["macros"] }
 anyhow = "1.0"
+crux_core = "0.20"
+derive_more = { version = "2", features = ["constructor", "deref", "deref_mut"] }
 serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
-derive_more = { version = "2", features = ["deref", "deref_mut","constructor"] }

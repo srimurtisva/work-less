@@ -1,13 +1,20 @@
 [package]
-name = "iced_client"
+name = "desktop"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 iced = { version = "0.14.0", features = ["tokio"] }
 
-shared.workspace = true
+crux_core.workspace = true
 derive_more = { workspace = true }
+shared.workspace = true
+p2p.workspace = true
+tokio.workspace = true
 tracing = { workspace = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-tokio = { version = "1.53.1", features = ["sync"] }
+chrono = "0.4.45"
+futures   = "0.3.34"
+iced_split   = "0.1.0"
+serde.workspace = true
+futures-util = "0.3.34"

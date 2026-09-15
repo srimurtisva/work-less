@@ -105,7 +105,8 @@ fun DefaultPreview() {
             view = CruxViewModel(
                 content = "Тестовый Loro текст",
                 peerId = "12345", // исправлено: peerId
-                version = 1UL
+                version = 1UL,
+                snapshot = emptyList()
             ),
             onEvent = {}
         )

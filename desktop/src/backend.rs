@@ -9,19 +9,19 @@ use tokio::sync::mpsc::unbounded_channel;
 
 // Root for backend-related functionality
 pub struct State {
-    app: App,
+    // app: shared::App,
     // screen: screen::State,
 }
 
 impl State {
     pub fn new() -> (Self, Task<Message>) {
-        let (wake_tx, wake_rx) = unbounded_channel::<String>();
+        let (_wake_tx, wake_rx) = unbounded_channel::<String>();
 
-        let app = shared::App::default();
+        // let app = shared::App::default();
         // let screen = screen::State::new();
 
         let backend = Self { 
-            app
+            // app
              // , screen
         };
 

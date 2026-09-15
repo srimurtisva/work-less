@@ -4,12 +4,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel as AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
-// Импортируем все сгенерированные типы Crux с префиксом com.
-import com.crux.examples.counter.Effect
 import com.crux.examples.counter.Event
-import com.crux.examples.counter.Request
-import com.crux.examples.counter.Requests
 import com.crux.examples.counter.ViewModel as CruxViewModel
 
 open class Core : AndroidViewModel() {
@@ -20,20 +20,21 @@ open class Core : AndroidViewModel() {
     )
         private set
 
-    fun update(event: Event) {
-        val effects = core.update(event.bincodeSerialize())
-
-        val requests = Requests.bincodeDeserialize(effects).value
-        for (request in requests) {
-            processEffect(request)
+    init {
+        // Фоновый опрос для подхвата входящих изменений из P2P
+        viewModelScope.launch {
+            while (isActive) {
+                delay(300) // каждые 300 мс синхронизируем UI с ядром
+                val latest = CruxViewModel.bincodeDeserialize(core.view())
+                if (latest != view) {
+                    view = latest
+                }
+            }
         }
     }
 
-    private fun processEffect(request: Request) {
-        when (val effect = request.effect) {
-            is Effect.Render -> {
-                this.view = CruxViewModel.bincodeDeserialize(core.view())
-            }
-        }
+    fun update(event: Event) {
+        val viewBytes = core.update(event.bincodeSerialize())
+        this.view = CruxViewModel.bincodeDeserialize(core.view())
     }
 }

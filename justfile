@@ -47,3 +47,7 @@ clean:
     cd shared && cargo clean
     cd Android && ./gradlew clean
     rm -rf Android/generated/jniLibs
+
+# Запустить десктопное приложение
+run-desktop:
+    cargo run -p desktop
