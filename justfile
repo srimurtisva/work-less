@@ -53,7 +53,7 @@ run-desktop:
     cargo run -p desktop
 
 # Git commit with message
-git message="message":
+commit message="message":
     cd ~/code/rust/work-less
     git add .
     git commit -m "{{message}}"
