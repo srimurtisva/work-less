@@ -1,4 +1,6 @@
  pub mod app;
-mod util;
+pub mod node_identity;
+
+pub use app::*;
 
 

@@ -5,12 +5,16 @@ use iroh_tickets::Ticket;
 
 pub struct P2pWorker {
     router: iroh::protocol::Router,
+    _identity_manager: crate::node_identity::NodeIdentityManager,
     #[cfg(feature = "gossip")]
     gossip: iroh_gossip::Gossip,
 }
 
 impl P2pWorker {
-    async fn new(endpoint: iroh::Endpoint) -> anyhow::Result<Self> {
+    async fn new(
+        endpoint: iroh::Endpoint,
+        identity_manager: crate::node_identity::NodeIdentityManager,
+    ) -> anyhow::Result<Self> {
         let mut builder = iroh::protocol::Router::builder(endpoint.clone());
 
         #[cfg(feature = "gossip")]
@@ -32,6 +36,7 @@ impl P2pWorker {
         let router = builder.spawn();
 
         Ok(Self {
+            _identity_manager: identity_manager,
             router,
             #[cfg(feature = "gossip")]
             gossip,
@@ -43,9 +48,16 @@ impl P2pWorker {
         mut outgoing_rx: tokio::sync::mpsc::Receiver<OutgoingCommand>,
     ) {
         tracing::trace!("p2p worker has started to run");
-        let key = crate::util::NodeIdentityManager::auto().get_or_create_key();
+
+        let mut manager = crate::node_identity::NodeIdentityManager::auto();
+        let identity = manager.acquire_identity();
+
+        if !identity.owns_persistent_identity {
+            tracing::warn!("Running as a secondary instance");
+        }
+
         tracing::trace!("The key is there");
-        let endpoint = match bind_endpoint(key).await {
+        let endpoint = match bind_endpoint(identity.key).await {
             Ok(endpoint) => {
                 tracing::trace!("Endpoint binded.");
                 endpoint
@@ -56,7 +68,7 @@ impl P2pWorker {
                 return;
             }
         };
-        let worker = match Self::new(endpoint.clone()).await {
+        let worker = match Self::new(endpoint.clone(), manager).await {
             Ok(w) => {
                 tracing::trace!("Worker is running.");
                 w
@@ -69,10 +81,10 @@ impl P2pWorker {
         };
         endpoint.online().await;
         tracing::info!(
-    id = %endpoint.id(),
-    addr = ?endpoint.addr(),
-    "Endpoint is online"
-);
+            id = %endpoint.id(),
+            addr = ?endpoint.addr(),
+            "Endpoint is online"
+        );
         let ticket = iroh_tickets::endpoint::EndpointTicket::new(endpoint.addr()).encode_string();
         ctx.send_event(Event::Ready(ticket));
 
@@ -81,7 +93,7 @@ impl P2pWorker {
         #[cfg(feature = "gossip")]
         {
             let topic_id = iroh_gossip::proto::TopicId::from(*TOPIC_NAME);
-            let Ok(mut topic) = worker.gossip.subscribe(topic_id, vec![]).await else {
+            let Ok(topic) = worker.gossip.subscribe(topic_id, vec![]).await else {
                 tracing::error!("Failed to subcribe to topic");
                 ctx.send_event(Event::Failed("Failed to subscribe to topic".into()));
                 return;
@@ -177,12 +189,8 @@ async fn bind_endpoint(key: iroh::SecretKey) -> Result<iroh::Endpoint, iroh::end
     let dht = iroh_mainline_address_lookup::DhtAddressLookup::builder();
     let mdns = iroh_mdns_address_lookup::MdnsAddressLookup::builder();
 
-    let builder = iroh::Endpoint::builder(presets::N0);
-
-    #[cfg(not(debug_assertions))]
-    let builder = builder.secret_key(key);
-
-    let endpoint = builder
+    let endpoint = iroh::Endpoint::builder(presets::N0)
+        .secret_key(key)
         .address_lookup(dht)
         .address_lookup(mdns)
         .bind()

@@ -46,7 +46,7 @@ impl DesktopApp {
     pub fn boot() -> (Self, Task<Message>) {
         let app = shared::App::default();
         let mut model = shared::Model::default();
-        let start_command = app.update(Event::P2p(p2p::app::Event::Start), &mut model);
+        let start_command = app.update(Event::P2p(p2p::Event::Start), &mut model);
         let p2p_task = Task::stream(start_command.filter_map(|output| async move {
             match output {
                 CommandOutput::Effect(shared::Effect::Render(_)) => Some(Message::Render),

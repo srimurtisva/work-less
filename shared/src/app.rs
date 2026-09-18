@@ -7,26 +7,26 @@ pub mod crdt;
 #[derive(Default)]
 pub struct App {
     crdt: crdt::App,
-    p2p: p2p::app::App,
+    p2p: p2p::App,
 }
 
 #[derive(Facet, Serialize, Deserialize, Clone, Debug)]
 #[repr(C)]
 pub enum Event {
     Crdt(crdt::Event),
-    P2p(p2p::app::Event),
+    P2p(p2p::Event),
 }
 
 #[derive(Default, Debug)]
 pub struct Model {
     pub crdt: crdt::Model,
-    pub p2p: p2p::app::Model,
+    pub p2p: p2p::Model,
 }
 
 #[derive(Facet, Serialize, Deserialize, Clone, Default)]
 pub struct ViewModel {
     pub crdt: crdt::ViewModel,
-    pub p2p: p2p::app::ViewModel,
+    pub p2p: p2p::ViewModel,
 }
 
 use crux_core::macros::effect;
@@ -50,83 +50,57 @@ impl crux_core::App for App {
                     .crdt
                     .update(event, &mut model.crdt)
                     .map_event(Event::Crdt)
-                    .map_effect(|effect| match effect {
-                        crdt::Effect::Render(render) => Effect::Render(render),
-                    });
+                    .map_effect(Effect::from);
 
                 let snapshot = model.crdt.export_snapshot();
 
                 let p2p_cmd = self
                     .p2p
-                    .update(p2p::app::Event::Broadcast(snapshot), &mut model.p2p)
+                    .update(p2p::Event::Broadcast(snapshot), &mut model.p2p)
                     .map_event(Event::P2p)
-                    .map_effect(|e| match e {
-                        p2p::app::Effect::Render(r) => Effect::Render(r),
-                    });
+                    .map_effect(Effect::from);
 
                 Command::all(vec![crdt_cmd, p2p_cmd])
             }
 
-            Event::P2p(p2p::app::Event::DataReceived(data)) => {
+            Event::P2p(p2p::Event::DataReceived(data)) => {
                 let p2p_cmd = self
                     .p2p
-                    .update(p2p::app::Event::DataReceived(data.clone()), &mut model.p2p)
+                    .update(p2p::Event::DataReceived(data.clone()), &mut model.p2p)
                     .map_event(Event::P2p)
-                    .map_effect(|e| match e {
-                        p2p::app::Effect::Render(r) => Effect::Render(r),
-                    });
+                    .map_effect(Effect::from);
 
                 let crdt_cmd = self
                     .crdt
                     .update(crdt::Event::Import(data), &mut model.crdt)
                     .map_event(Event::Crdt)
-                    .map_effect(|e| match e {
-                        crdt::Effect::Render(r) => Effect::Render(r),
-                    });
+                    .map_effect(Effect::from);
 
                 Command::all(vec![p2p_cmd, crdt_cmd])
             }
 
-            Event::P2p(p2p::app::Event::PeerJoined(peer)) => {
+            Event::P2p(p2p::Event::PeerJoined(peer)) => {
                 let p2p_cmd = self
                     .p2p
-                    .update(p2p::app::Event::PeerJoined(peer), &mut model.p2p)
+                    .update(p2p::Event::PeerJoined(peer), &mut model.p2p)
                     .map_event(Event::P2p)
-                    .map_effect(|e| match e {
-                        p2p::app::Effect::Render(r) => Effect::Render(r),
-                    });
+                    .map_effect(Effect::from);
 
                 let snapshot = model.crdt.export_snapshot();
                 let broadcast_cmd = self
                     .p2p
-                    .update(p2p::app::Event::Broadcast(snapshot), &mut model.p2p)
+                    .update(p2p::Event::Broadcast(snapshot), &mut model.p2p)
                     .map_event(Event::P2p)
-                    .map_effect(|e| match e {
-                        p2p::app::Effect::Render(r) => Effect::Render(r),
-                    });
+                    .map_effect(Effect::from);
 
                 Command::all(vec![p2p_cmd, broadcast_cmd])
             }
 
-            Event::P2p(event) => {
-                let mut update = self.p2p.update(event, &mut model.p2p);
-
-                for p2p_event in update.events() {
-                    if let p2p::app::Event::DataReceived(data) = p2p_event {
-                        let c = self.crdt.update(crdt::Event::Import(data), &mut model.crdt);
-                        let c = c.map_event(Event::Crdt).map_effect(|effect| match effect {
-                            crdt::Effect::Render(render) => Effect::Render(render),
-                        });
-                        return c;
-                    }
-                }
-
-                update
-                    .map_event(Event::P2p)
-                    .map_effect(|effect| match effect {
-                        p2p::app::Effect::Render(render) => Effect::Render(render),
-                    })
-            }
+            Event::P2p(event) => self
+                .p2p
+                .update(event, &mut model.p2p)
+                .map_event(Event::P2p)
+                .map_effect(Effect::from),
         }
     }
 
@@ -134,5 +108,17 @@ impl crux_core::App for App {
         let crdt = self.crdt.view(&model.crdt);
         let p2p = self.p2p.view(&model.p2p);
         ViewModel { crdt, p2p }
+    }
+}
+
+impl From<crdt::Effect> for Effect {
+    fn from(crdt::Effect::Render(r): crdt::Effect) -> Self {
+        Effect::Render(r)
+    }
+}
+
+impl From<p2p::Effect> for Effect {
+    fn from(p2p::Effect::Render(r): p2p::Effect) -> Self {
+        Effect::Render(r)
     }
 }

@@ -72,7 +72,7 @@ pub enum Status {
     Connecting,
     Connected {
         ticket: String,
-        peers_count: usize,
+        peers_count: u32,
     },
     Failed(String),
 }
@@ -135,7 +135,7 @@ impl crux_core::App for App {
                     peers_count,
                 } = model.status.clone()
                 {
-                    let peers_count = peers_count + 1;
+                    let peers_count = peers_count.saturating_add(1);
                     model.status = Status::Connected {
                         ticket,
                         peers_count,
@@ -150,7 +150,7 @@ impl crux_core::App for App {
                     peers_count,
                 } = model.status.clone()
                 {
-                    let peers_count = peers_count - 1;
+                    let peers_count = peers_count.saturating_sub(1);
                     model.status = Status::Connected {
                         ticket,
                         peers_count,
@@ -178,22 +178,16 @@ impl crux_core::App for App {
 
     fn view(&self, model: &Model) -> ViewModel {
         let status_text = format!("{:?}", model.status);
-        let ticket = if let Status::Connected {
-            ticket: node_id, ..
+        let (ticket, peers_count) = if let Status::Connected {
+            ticket: node_id,
+            peers_count,
         } = model.status.clone()
         {
-            node_id
+            (node_id, peers_count)
         } else {
-            "".to_string()
+            ("".to_string(), 0)
         };
         let is_connected = matches!(model.status, Status::Connected { .. });
-        let peers_count: u32 = match model.connected_peers.len().try_into() {
-            Ok(val) => val,
-            Err(error) => {
-                tracing::error!("Failed to convert number: {error}");
-                0
-            }
-        };
         ViewModel {
             status_text,
             is_connected,
@@ -209,3 +203,282 @@ pub enum OutgoingCommand {
     Join(String),
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crux_core::App;
+
+    #[test]
+    fn default_model_is_uninitialized() {
+        let model = Model::default();
+
+        assert_eq!(model.status, Status::Uninitialized);
+        assert!(model.connected_peers.is_empty());
+    }
+
+    #[test]
+    fn view_for_uninitialized_model() {
+        let app = super::App::default();
+        let model = Model::default();
+
+        let view = app.view(&model);
+
+        assert_eq!(view.status_text, "Uninitialized");
+        assert!(!view.is_connected);
+        assert_eq!(view.peers_count, 0);
+        assert_eq!(view.ticket, "");
+    }
+
+    #[test]
+    fn view_for_connected_model() {
+        let app = super::App::default();
+
+        let model = Model {
+            status: Status::Connected {
+                ticket: "ticket-123".to_string(),
+                peers_count: 2,
+            },
+            connected_peers: vec!["peer-1".to_string(), "peer-2".to_string()],
+        };
+
+        let view = app.view(&model);
+
+        assert_eq!(
+            view.status_text,
+            "Connected { ticket: \"ticket-123\", peers_count: 2 }"
+        );
+        assert!(view.is_connected);
+        assert_eq!(view.peers_count, 2);
+        assert_eq!(view.ticket, "ticket-123");
+    }
+
+    #[test]
+    fn view_for_failed_model() {
+        let app = super::App::default();
+
+        let model = Model {
+            status: Status::Failed("connection failed".to_string()),
+            connected_peers: vec![],
+        };
+
+        let view = app.view(&model);
+
+        assert_eq!(view.status_text, "Failed(\"connection failed\")");
+        assert!(!view.is_connected);
+        assert_eq!(view.peers_count, 0);
+        assert_eq!(view.ticket, "");
+    }
+
+    #[test]
+    fn start_changes_status_to_connecting() {
+        let app = super::App::default();
+        let mut model = Model::default();
+
+        let _command = app.update(Event::Start, &mut model);
+
+        assert_eq!(model.status, Status::Connecting);
+    }
+
+    #[test]
+    fn ready_changes_status_to_connected() {
+        let app = super::App::default();
+        let mut model = Model::default();
+
+        let _command = app.update(Event::Ready("ticket-123".to_string()), &mut model);
+
+        assert_eq!(
+            model.status,
+            Status::Connected {
+                ticket: "ticket-123".to_string(),
+                peers_count: 0,
+            }
+        );
+    }
+
+    #[test]
+    fn peer_joined_is_added_to_connected_peers() {
+        let app = super::App::default();
+
+        let mut model = Model {
+            status: Status::Connected {
+                ticket: "ticket-123".to_string(),
+                peers_count: 0,
+            },
+            connected_peers: vec![],
+        };
+
+        let _command = app.update(Event::PeerJoined("peer-1".to_string()), &mut model);
+
+        assert_eq!(model.connected_peers, vec!["peer-1".to_string()]);
+
+        assert_eq!(
+            model.status,
+            Status::Connected {
+                ticket: "ticket-123".to_string(),
+                peers_count: 1,
+            }
+        );
+    }
+
+    #[test]
+    fn peer_left_is_removed_from_connected_peers() {
+        let app = super::App::default();
+
+        let mut model = Model {
+            status: Status::Connected {
+                ticket: "ticket-123".to_string(),
+                peers_count: 2,
+            },
+            connected_peers: vec!["peer-1".to_string(), "peer-2".to_string()],
+        };
+
+        let _command = app.update(Event::PeerLeft("peer-1".to_string()), &mut model);
+
+        assert_eq!(model.connected_peers, vec!["peer-2".to_string()]);
+
+        assert_eq!(
+            model.status,
+            Status::Connected {
+                ticket: "ticket-123".to_string(),
+                peers_count: 1,
+            }
+        );
+    }
+
+    #[test]
+    fn peer_left_unknown_peer_does_not_change_peer_list() {
+        let app = super::App::default();
+
+        let mut model = Model {
+            status: Status::Connected {
+                ticket: "ticket-123".to_string(),
+                peers_count: 1,
+            },
+            connected_peers: vec!["peer-1".to_string()],
+        };
+
+        let _command = app.update(Event::PeerLeft("unknown-peer".to_string()), &mut model);
+
+        assert_eq!(model.connected_peers, vec!["peer-1".to_string()]);
+
+        assert_eq!(
+            model.status,
+            Status::Connected {
+                ticket: "ticket-123".to_string(),
+                peers_count: 0,
+            }
+        );
+    }
+
+    #[test]
+    fn failed_event_changes_status() {
+        let app = super::App::default();
+        let mut model = Model::default();
+
+        let _command = app.update(
+            Event::Failed("something went wrong".to_string()),
+            &mut model,
+        );
+
+        assert_eq!(
+            model.status,
+            Status::Failed("something went wrong".to_string())
+        );
+    }
+
+    #[tokio::test]
+    async fn connect_sends_join_command() {
+        let app = super::App::default();
+
+        let receiver = app
+            .outgoing_rx
+            .lock()
+            .unwrap()
+            .take()
+            .expect("receiver should exist");
+
+        let mut model = Model::default();
+
+        let _command = app.update(Event::Connect("ticket-123".to_string()), &mut model);
+
+        let mut receiver = receiver;
+
+        let command = receiver.recv().await.expect("Join command should be sent");
+
+        match command {
+            OutgoingCommand::Join(ticket) => {
+                assert_eq!(ticket, "ticket-123");
+            }
+            other => panic!("expected Join command, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn broadcast_sends_broadcast_command() {
+        let app = super::App::default();
+
+        let receiver = app
+            .outgoing_rx
+            .lock()
+            .unwrap()
+            .take()
+            .expect("receiver should exist");
+
+        let mut model = Model::default();
+
+        let data = vec![1, 2, 3, 4];
+
+        let _command = app.update(Event::Broadcast(data.clone()), &mut model);
+
+        let mut receiver = receiver;
+
+        let command = receiver
+            .recv()
+            .await
+            .expect("Broadcast command should be sent");
+
+        match command {
+            OutgoingCommand::Broadcast(received) => {
+                assert_eq!(received, data);
+            }
+            other => panic!("expected Broadcast command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn start_can_only_take_receiver_once() {
+        let app = super::App::default();
+
+        let mut first_model = Model::default();
+        let mut second_model = Model::default();
+
+        let _first_command = app.update(Event::Start, &mut first_model);
+        let _second_command = app.update(Event::Start, &mut second_model);
+
+        assert_eq!(first_model.status, Status::Connecting);
+        assert_eq!(second_model.status, Status::Connecting);
+    }
+
+    #[test]
+    fn peer_left_when_no_peers_does_not_underflow() {
+        let app = super::App::default();
+
+        let mut model = Model {
+            status: Status::Connected {
+                ticket: "ticket-123".to_string(),
+                peers_count: 0,
+            },
+            connected_peers: vec![],
+        };
+
+        let _command = app.update(Event::PeerLeft("unknown-peer".to_string()), &mut model);
+
+        assert_eq!(
+            model.status,
+            Status::Connected {
+                ticket: "ticket-123".to_string(),
+                peers_count: 0,
+            }
+        );
+    }
+}
