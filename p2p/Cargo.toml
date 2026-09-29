@@ -10,11 +10,9 @@ gossip = ["dep:iroh-gossip"]
 blobs = ["dep:iroh-blobs"]
 
 [dependencies]
-iroh = "1.1.0" #Upgrade to 1.2
-iroh-gossip ={ version = "0.101.0",  optional = true}
-iroh-blobs  = {version  = "0.103.0"
-,optional = true
-}
+iroh-blobs = { version = "0.103.0", optional = true }
+iroh = "1.1.0"                                         #Upgrade to 1.2
+iroh-gossip = { version = "0.101.0", optional = true }
 iroh-mainline-address-lookup = "0.4"
 iroh-mdns-address-lookup = "0.4"
 iroh-tickets = "=1"
@@ -27,16 +25,15 @@ anyhow = { workspace = true }
 tokio.workspace = true
 tracing.workspace = true
 serde = { workspace = true, features = ["derive"] }
-bytes   = "1.12.1"
+bytes = "1.12.1"
 futures-util = "0.3"
 serde_json = "1.0.151"
 data-encoding = "2.11.1"
- # 
- # For iroh::SecretKey persistance
+#
+# For iroh::SecretKey persistance
 directories = "6.0.0"
-fs2  = "0.4"
+fs2 = "0.4"
 
 [dev-dependencies]
-loro   = "1.16.0"
+loro = "1.16.0"
 tempfile = "3.27.0"
-

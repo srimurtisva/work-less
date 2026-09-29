@@ -1,5 +1,6 @@
 use crux_core::Command;
 use facet::Facet;
+use p2p::iroh_capability::{ IrohBroadcast, IrohConnect};
 use serde::{Deserialize, Serialize};
 
 pub mod crdt;
@@ -35,6 +36,8 @@ use crux_core::render::RenderOperation;
 #[derive(Debug)]
 pub enum Effect {
     Render(RenderOperation),
+    Iroh(IrohConnect),
+    IrohBroadcast(IrohBroadcast), 
 }
 
 impl crux_core::App for App {

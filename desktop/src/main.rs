@@ -1,3 +1,4 @@
+
 use crux_core::{App, command::CommandOutput};
 use futures::StreamExt;
 use iced::{
@@ -10,6 +11,7 @@ use shared::crdt;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, fmt};
+
 
 pub fn main() -> iced::Result {
     init_logs();
@@ -40,6 +42,7 @@ pub struct DesktopApp {
     model: shared::Model,
     view: ViewModel,
     input_text: String,
+
 }
 
 impl DesktopApp {
@@ -51,6 +54,8 @@ impl DesktopApp {
             match output {
                 CommandOutput::Effect(shared::Effect::Render(_)) => Some(Message::Render),
                 CommandOutput::Event(event) => Some(Message::ProcessEvent(event)),
+                CommandOutput::Effect(shared::Effect::Iroh(_)) => None,
+                CommandOutput::Effect(shared::Effect::IrohBroadcast(_)) => None,
             }
         }));
         let view = app.view(&model);
@@ -147,8 +152,7 @@ impl DesktopApp {
                     self.input_text.clear();
                 }
                 let _ = self.app.update(event, &mut self.model);
-                self.view = self.app.view(&self.model);
-                Task::none()
+                Task::done(Message::Render)
             }
             Message::Render => {
                 self.view = self.app.view(&self.model);
@@ -157,26 +161,15 @@ impl DesktopApp {
             Message::Copy => iced::clipboard::write(self.view.p2p.ticket.clone()),
             Message::Paste => iced::clipboard::read().map(|value| {
                 if let Some(ticket_string) = value {
-                    Message::ProcessEvent(Event::P2p(p2p::app::Event::Connect(ticket_string)))
+                    Message::ProcessEvent(Event::P2p(p2p::Event::Connect(ticket_string)))
                 } else {
                     Message::Render
                 }
             }),
         }
     }
-
-    fn handle_effects(&mut self, requests: Vec<shared::Effect>) -> Task<Message> {
-        let mut task = Task::none();
-        for e in requests {
-            match e {
-                shared::Effect::Render(_) => {
-                    task = Task::done(Message::Render);
-                }
-            }
-        }
-        task
-    }
 }
+
 #[derive(Debug, Clone)]
 pub enum Message {
     InputChanged(String),
